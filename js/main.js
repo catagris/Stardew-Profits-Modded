@@ -1461,6 +1461,20 @@ function renderGraph() {
 				tooltip.style("top", (d3.event.pageY - 16) + "px").style("left",(d3.event.pageX + 20) + "px");
 			})
 			.on("mouseout", function() { tooltip.style("visibility", "hidden"); })
+			.on("auxclick", function(d) { 
+				if (options.disableLinks) {
+					return;
+				}
+
+				// Only opens a new wiki tab if it's the middle
+				// mouse button that was pressed.
+				// See <https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/button#value>
+				if (d3.event.button !== 1) {
+					return;
+				}
+
+				window.open(d.url, "_blank"); 
+			})
 			.on("click", function(d) { 
 				if(!options.disableLinks)
 					window.open(d.url, "_blank"); 
