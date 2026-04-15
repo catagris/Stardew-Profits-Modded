@@ -103,9 +103,9 @@ function harvests(cropID) {
 	var day = 1;
 
 	if (options.skills.agri)
-		day += Math.floor(crop.growth.initial * (fertilizer.growth - 0.1));
+		day += Math.ceil(crop.growth.initial * (fertilizer.growth - 0.1));
 	else
-		day += Math.floor(crop.growth.initial * fertilizer.growth);
+		day += Math.ceil(crop.growth.initial * fertilizer.growth);
 
 	if (day <= remainingDays && (!isTea || ((day-1) % 28 + 1) > 21))
 		harvests++;
@@ -118,9 +118,9 @@ function harvests(cropID) {
 		else {
 			// console.log("Harvest on day: " + day);
 			if (options.skills.agri)
-				day += Math.floor(crop.growth.initial * (fertilizer.growth - 0.1));
+				day += Math.ceil(crop.growth.initial * (fertilizer.growth - 0.1));
 			else
-				day += Math.floor(crop.growth.initial * fertilizer.growth);
+				day += Math.ceil(crop.growth.initial * fertilizer.growth);
 		}
 
 		if (day <= remainingDays && (!isTea || ((day-1) % 28 + 1) > 21))
@@ -1262,9 +1262,9 @@ function renderGraph() {
                     var seedPrice = d.seeds.sell;
                     var initialGrow = 0;
                     if (options.skills.agri)
-                        initialGrow += Math.floor(d.growth.initial * (fertilizer.growth - 0.1));
+                        initialGrow += Math.ceil(d.growth.initial * (fertilizer.growth - 0.1));
                     else
-                        initialGrow += Math.floor(d.growth.initial * fertilizer.growth);
+                        initialGrow += Math.ceil(d.growth.initial * fertilizer.growth);
 
 					tooltip.append("h3").attr("class", "tooltipTitleExtra").text("Crop Info");
 					if(options.predictionModel)
