@@ -345,6 +345,35 @@ function getMillModifier(crop) {
 
 
 /*
+ * Modded artisan machines, added as extra "Produce Type" options (value >= 6).
+ * Each turns an eligible crop into an artisan good worth price * multiplier. They
+ * reuse the Keg quantity/equipment logic; only eligibility (by crop category) and
+ * the value formula differ. Data from Cornucopia - Artisan Machines.
+ */
+var artisanMachines = [
+	{ value: 6,  name: "Juicer",      category: "fruit",  multiplier: 2.25 },
+	{ value: 7,  name: "Yogurt Jar",  category: "fruit",  multiplier: 2 },
+	{ value: 8,  name: "Alembic",     category: "flower", multiplier: 7.5 },
+	{ value: 9,  name: "Drying Rack", category: "flower", multiplier: 10 },
+	{ value: 10, name: "Wax Barrel",  category: "flower", multiplier: 3 }
+];
+
+function artisanMachineFor(produceValue) {
+	for (var i = 0; i < artisanMachines.length; i++)
+		if (artisanMachines[i].value == produceValue) return artisanMachines[i];
+	return null;
+}
+
+// Classify a crop for machine eligibility, from its existing artisan-good types.
+function cropCategory(crop) {
+	var k = crop.produce.kegType, j = crop.produce.jarType;
+	if (k == "Wine" || j == "Jelly") return "fruit";
+	if (k == "Juice" || j == "Pickles") return "vegetable";
+	if (k == null && j == null) return "flower";   // flowers have no jar/keg good
+	return "other";
+}
+
+/*
  * Calculates the profit for a specified crop.
  * @param crop The crop object, containing all the crop data.
  * @return The total profit.
@@ -353,7 +382,10 @@ function profit(crop) {
     profitData = {}
 	var num_planted = planted(crop);
 	var fertilizer = fertilizers[options.fertilizer];
-	var produce = options.produce;
+	// Modded machines (value >= 6) reuse the Keg path for quantities, so alias the
+	// local produce type to Keg (2) and carry the machine def for value/eligibility.
+	var machineDef = artisanMachineFor(options.produce);
+	var produce = machineDef ? 2 : options.produce;
 	var isTea = crop.name == "Tea Leaves";
 	var isCoffee = crop.name == "Coffee Bean";
 
@@ -377,13 +409,17 @@ function profit(crop) {
 	
 	var userawproduce = false;
 
-	switch(produce) {
-		case 1: 
+	if (machineDef) {
+		// modded machine: eligible only if the crop matches the machine's category
+		if (cropCategory(crop) != machineDef.category) userawproduce = true;
+	}
+	else switch(produce) {
+		case 1:
 			if(crop.produce.jarType == null) userawproduce = true;
 			break;
 		case 2:
 			if(crop.produce.kegType == null) userawproduce = true;
-			break;	
+			break;
 		case 4:
 			if(crop.produce.dehydratorType == null) userawproduce = true;
 			break;
@@ -579,14 +615,20 @@ function profit(crop) {
                 var caskModifier = getCaskModifier(crop);
                 var dehydratorModifier = getDehydratorModifier(crop);
 				var kegPrice = 0;
-                if (options.produce == 1) {
+                if (produce == 1) {
                     netIncome += itemsMade * (options.skills.arti ? (crop.produce.price * 2 + 50) * 1.4 : crop.produce.price * 2 + 50);
                 }
-                else if (options.produce == 2) {
-					kegPrice = kegBasePrice * caskModifier;
-                    netIncome += options.skills.arti && crop.produce.kegType != "Coffee" ? itemsMade * (kegPrice * 1.4) : itemsMade * kegPrice;
+                else if (produce == 2) {
+                    if (machineDef) {
+                        // modded artisan machine: value = crop price * multiplier (Artisan +40%)
+                        var machinePrice = crop.produce.price * machineDef.multiplier;
+                        netIncome += options.skills.arti ? itemsMade * (machinePrice * 1.4) : itemsMade * machinePrice;
+                    } else {
+                        kegPrice = kegBasePrice * caskModifier;
+                        netIncome += options.skills.arti && crop.produce.kegType != "Coffee" ? itemsMade * (kegPrice * 1.4) : itemsMade * kegPrice;
+                    }
                 }
-                else if (options.produce == 4) {
+                else if (produce == 4) {
                     netIncome += crop.produce.dehydratorType != null ? itemsMade * dehydratorModifier : 0;
                 }
         
@@ -1263,6 +1305,37 @@ function renderGraph() {
 						else
 							tooltipTr.append("td").attr("class", "tooltipTdRightNeg").text(d.profitData.quantitySold);
 						break;
+					default:
+						// modded artisan machines (produce value >= 6)
+						var md = artisanMachineFor(options.produce);
+						if (md && cropCategory(d) == md.category) {
+							tooltipTr.append("td").attr("class", "tooltipTdRight").text(md.name);
+							tooltipTr = tooltipTable.append("tr");
+							tooltipTr.append("td").attr("class", "tooltipTdRight").text("Quantity sold:");
+							if (d.profitData.quantitySold > 0) {
+								tooltipTr.append("td").attr("class", "tooltipTdRight").text(d.profitData.quantitySold);
+								tooltipTr = tooltipTable.append("tr");
+								if (options.sellExcess && d.profitData.excessProduce > 0) {
+									tooltipTr.append("td").attr("class", "tooltipTdRight").text("Excess Produce:");
+									tooltipTr.append("td").attr("class", "tooltipTdRight").text(d.profitData.excessProduce);
+								} else if (d.profitData.excessProduce > 0) {
+									tooltipTr.append("td").attr("class", "tooltipTdRight").text("Excess Produce Unsold:");
+									tooltipTr.append("td").attr("class", "tooltipTdRightNeg").text(d.profitData.excessProduce);
+								}
+							} else {
+								tooltipTr.append("td").attr("class", "tooltipTdRightNeg").text(d.profitData.quantitySold);
+							}
+						}
+						else if (options.sellRaw) {
+							tooltipTr.append("td").attr("class", "tooltipTdRightNeg").text("Raw crops");
+							tooltipTr = tooltipTable.append("tr");
+							tooltipTr.append("td").attr("class", "tooltipTdRight").text("Quantity sold:");
+							tooltipTr.append("td").attr("class", "tooltipTdRight").text(d.profitData.quantitySold);
+						}
+						else {
+							tooltipTr.append("td").attr("class", "tooltipTdRightNeg").text("None");
+						}
+						break;
 				}
 				tooltipTr = tooltipTable.append("tr");
 				tooltipTr.append("td").attr("class", "tooltipTdLeft").text("Duration:");
@@ -1936,7 +2009,22 @@ function updateData() {
 /*
  * Called once on startup to draw the UI.
  */
+// Append the modded artisan machines to the Produce Type dropdown (data-driven).
+function buildProduceOptions() {
+	var sel = document.getElementById('select_produce');
+	if (!sel) return;
+	artisanMachines.forEach(function (m) {
+		if (document.getElementById('produce_' + m.value)) return;
+		var opt = document.createElement('option');
+		opt.id = 'produce_' + m.value;
+		opt.value = m.value;
+		opt.textContent = m.name;
+		sel.appendChild(opt);
+	});
+}
+
 function initial() {
+	buildProduceOptions();   // add machine options before optionsLoad restores the selection
 	// optionsLoad() restores the enabled-mod set from the URL hash into ModRegistry,
 	// so rebuildData() must run after it to honor the saved selection.
 	optionsLoad();
@@ -2096,7 +2184,8 @@ function optionsLoad() {
 	options.season = validIntRange(0, 4, options.season);
 	document.getElementById('select_season').value = options.season;
 
-	options.produce = validIntRange(0, 5, options.produce);
+	var maxProduce = artisanMachines.reduce(function (mx, m) { return Math.max(mx, m.value); }, 5);
+	options.produce = validIntRange(0, maxProduce, options.produce);
 	document.getElementById('select_produce').value = options.produce;
 
     options.equipment = validIntRange(0, MAX_INT, options.equipment);
