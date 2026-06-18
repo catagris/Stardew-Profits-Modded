@@ -9,9 +9,17 @@ var width = svgWidth - 48;
 var height = (svgHeight - 56) / 2;
 var barPadding = 4;
 var paddingLeft = 8;
-var barWidth = width / seasons[options.season].crops.length - barPadding;
+// Fixed bar thickness (px). Bars keep this constant thickness regardless of crop
+// count; the graph widens (horizontal scroll) as crops are added rather than
+// squishing. (Originally this was derived once at load from the greenhouse count,
+// which happened to be ~20px for vanilla but broke when mods grew that count.)
+var barWidth = 20;
 var miniBar = 8;
-var barOffsetX = 29;
+// Left start of the bars/icons. Must clear the y-axis (drawn at x=48). Previously
+// 29, which worked only because d3 rangeRoundBands added a ~21px centering offset
+// from non-even division; with a fixed bar width the range divides evenly (no such
+// offset), so the offset is folded in here (29 + ~21).
+var barOffsetX = 50;
 var barOffsetY = 40;
 var graphDescription = "Profit";
 
@@ -69,6 +77,17 @@ function formatNumber(num) {
 }
 
 /*
+ * Whether a crop (by name) is in the given season index (0=spring..3=winter).
+ */
+function cropInSeason(crop, seasonIndex) {
+	var list = seasons[seasonIndex].crops;
+	for (var j = 0; j < list.length; j++)
+		if (list[j].name == crop.name)
+			return true;
+	return false;
+}
+
+/*
  * Calculates the maximum number of harvests for a crop, specified days, season, etc.
  * @param cropID The ID of the crop to calculate. This corresponds to the crop number of the selected season.
  * @return Number of harvests for the specified crop.
@@ -79,23 +98,22 @@ function harvests(cropID) {
 	// Tea blooms every day for the last 7 days of a season
 	var isTea = crop.name == "Tea Leaves";
 
-	// if the crop is NOT cross season, remove 28 extra days for each extra season
-	var remainingDays = options.days - 28;
+	// Cross-season: a crop grows from the selected season forward through each
+	// consecutive season it's still valid in (no wrap past winter). options.days is
+	// the full rest-of-year window from the current day; trim the seasons beyond the
+	// crop's consecutive span so e.g. a spring-only crop dies at the spring boundary.
+	var remainingDays;
 	if (options.crossSeason && options.season != 4) {
-        var i = options.season + 1;
-        if (i >= 4)
-            i = 0;
-		for (var j = 0; j < seasons[i].crops.length; j++) {
-			var seasonCrop = seasons[i].crops[j];
-			if (crop.name == seasonCrop.name) {
-				remainingDays += 28;
-				break;
-			}
+		var validSeasons = 1;
+		for (var s = options.season + 1; s <= 3; s++) {
+			if (cropInSeason(crop, s)) validSeasons++;
+			else break;
 		}
+		remainingDays = options.days - (4 - options.season - validSeasons) * 28;
 	}
-    else {
-        remainingDays = options.days;
-    }
+	else {
+		remainingDays = options.days;
+	}
 
 	// console.log("=== " + crop.name + " ===");
 
@@ -139,11 +157,11 @@ function harvests(cropID) {
 function minSeedCost(crop) {
 	var minSeedCost = Infinity;
 
-	if (crop.seeds.pierre != 0 && options.seeds.pierre && crop.seeds.pierre < minSeedCost)
+	if (crop.seeds.pierre != 0 && isSourceEnabled("Pierre") && crop.seeds.pierre < minSeedCost)
 		minSeedCost = crop.seeds.pierre;
-	if (crop.seeds.joja != 0 && options.seeds.joja && crop.seeds.joja < minSeedCost)
+	if (crop.seeds.joja != 0 && isSourceEnabled("Joja") && crop.seeds.joja < minSeedCost)
 		minSeedCost = crop.seeds.joja;
-	if (crop.seeds.special != 0 && options.seeds.special && crop.seeds.special < minSeedCost)
+	if (crop.seeds.special != 0 && isSourceEnabled(canonicalSource(crop.seeds.specialLoc)) && crop.seeds.special < minSeedCost)
 		minSeedCost = crop.seeds.special;
     if (minSeedCost == Infinity)
         minSeedCost = 0;
@@ -688,9 +706,9 @@ function fetchCrops() {
 	var season = seasons[options.season];
 
 	for (var i = 0; i < season.crops.length; i++) {
-	    if ((options.seeds.pierre && season.crops[i].seeds.pierre != 0) ||
-	    	(options.seeds.joja && season.crops[i].seeds.joja != 0) ||
-    	    (options.seeds.special && season.crops[i].seeds.specialLoc != "")) {
+	    if ((season.crops[i].seeds.pierre != 0 && isSourceEnabled("Pierre")) ||
+	    	(season.crops[i].seeds.joja != 0 && isSourceEnabled("Joja")) ||
+    	    (season.crops[i].seeds.specialLoc != "" && isSourceEnabled(canonicalSource(season.crops[i].seeds.specialLoc)))) {
 	    	cropList.push(JSON.parse(JSON.stringify(season.crops[i])));
 	    	cropList[cropList.length - 1].id = i;
 		}
@@ -787,9 +805,14 @@ function sortCrops() {
  * @return The new scale.
  */
 function updateScaleX() {
+	var n = cropList.length || 1;
+	// Domain = the bars actually drawn (current season's filtered crops); range spans
+	// the fixed-thickness bars so band spacing matches bar width and the graph grows
+	// with n instead of squishing bars into a fixed width.
+	var inner = (barWidth + barPadding) * n;
 	return d3.scale.ordinal()
-		.domain(d3.range(seasons[4].crops.length))
-		.rangeRoundBands([0, width]);
+		.domain(d3.range(n))
+		.rangeRoundBands([0, inner]);
 }
 
 /*
@@ -1638,10 +1661,11 @@ function updateGraph() {
 
 function updateSeasonNames() {
     if (options.crossSeason) {
-        document.getElementById('season_0').innerHTML = "Spring & Summer";
-        document.getElementById('season_1').innerHTML = "Summer & Fall";
-        document.getElementById('season_2').innerHTML = "Fall & Winter";
-        document.getElementById('season_3').innerHTML = "Winter & Spring";
+        // cross-season runs from the chosen season forward through the rest of the year
+        document.getElementById('season_0').innerHTML = "Spring &rarr;";
+        document.getElementById('season_1').innerHTML = "Summer &rarr;";
+        document.getElementById('season_2').innerHTML = "Fall &rarr;";
+        document.getElementById('season_3').innerHTML = "Winter";
     }
     else {
         document.getElementById('season_0').innerHTML = "Spring";
@@ -1750,10 +1774,12 @@ function updateData() {
         if (document.getElementById('current_day').value <= 0)
             document.getElementById('current_day').value = 1;
         if (options.crossSeason) {
-            document.getElementById('number_days').value = 56;
-            if (document.getElementById('current_day').value > 56)
-                document.getElementById('current_day').value = 56;
-            options.days = 57 - document.getElementById('current_day').value;
+            // window = rest of the year from the selected season (spring=112 .. winter=28)
+            var span = (4 - options.season) * 28;
+            document.getElementById('number_days').value = span;
+            if (document.getElementById('current_day').value > span)
+                document.getElementById('current_day').value = span;
+            options.days = (span + 1) - document.getElementById('current_day').value;
         }
         else {
             document.getElementById('number_days').value = 28;
@@ -1775,9 +1801,11 @@ function updateData() {
         options.days = document.getElementById('number_days').value;
     }
 
-	options.seeds.pierre = document.getElementById('check_seedsPierre').checked;
-	options.seeds.joja = document.getElementById('check_seedsJoja').checked;
-	options.seeds.special = document.getElementById('check_seedsSpecial').checked;
+	// Persist per-vendor seed source state (letter-only keys, URL-hash safe).
+	options.seedSources = {};
+	listSeedSources().forEach(function (label) {
+		options.seedSources[sourceKey(label)] = isSourceEnabled(label);
+	});
 
 	options.buySeed = document.getElementById('check_buySeed').checked;
 
@@ -1888,6 +1916,15 @@ function updateData() {
 
     updateSeasonNames();
 
+	// Snapshot enabled mods into options so they round-trip through the URL hash.
+	// Stored as { modId: bool } (mod ids are letters-only) to match the serializer.
+	if (typeof ModRegistry !== "undefined" && ModRegistry.getMods().length) {
+		options.mods = {};
+		ModRegistry.getMods().forEach(function (m) {
+			options.mods[m.id] = ModRegistry.isEnabled(m.id);
+		});
+	}
+
 	// Persist the options object into the URL hash.
 	window.location.hash = encodeURIComponent(serialize(options));
 
@@ -1900,9 +1937,128 @@ function updateData() {
  * Called once on startup to draw the UI.
  */
 function initial() {
+	// optionsLoad() restores the enabled-mod set from the URL hash into ModRegistry,
+	// so rebuildData() must run after it to honor the saved selection.
 	optionsLoad();
+	if (typeof ModRegistry !== "undefined") ModRegistry.rebuildData();
+	buildModsUI();
+	buildSeedSourcesUI();
 	updateData();
 	renderGraph();
+}
+
+/*
+ * Generate the "Mods" options row from the registered mods. One checkbox + link
+ * per mod; the row stays hidden when no mods are registered. Toggling a mod
+ * rebuilds the crop/season data and re-renders.
+ */
+function buildModsUI() {
+	if (typeof ModRegistry === "undefined") return;
+	var row = document.getElementById('mods_row');
+	var list = document.getElementById('mods_list');
+	if (!row || !list) return;
+
+	var mods = ModRegistry.getMods();
+	if (mods.length === 0) { row.style.display = "none"; return; }
+	row.style.display = "";
+	list.innerHTML = "";
+
+	mods.forEach(function (m, idx) {
+		var id = "check_mod_" + m.id;
+		var cb = document.createElement("input");
+		cb.type = "checkbox";
+		cb.id = id;
+		cb.checked = ModRegistry.isEnabled(m.id);
+		cb.addEventListener("change", function () { onModToggle(m.id, cb.checked); });
+
+		// Name is a plain label (clicking it toggles the checkbox); the mod page
+		// is a separate "(link)" so the name area stays easy to click on/off.
+		var label = document.createElement("label");
+		label.setAttribute("for", id);
+		label.textContent = m.name;
+
+		list.appendChild(cb);
+		list.appendChild(document.createTextNode(" "));
+		list.appendChild(label);
+		if (m.url) {
+			list.appendChild(document.createTextNode(" "));
+			var a = document.createElement("a");
+			a.href = m.url;
+			a.target = "_blank";
+			a.textContent = "(link)";
+			list.appendChild(a);
+		}
+		if (idx < mods.length - 1) list.appendChild(document.createElement("br"));
+	});
+}
+
+/*
+ * Handle a mod checkbox toggle: update the registry, rebuild crop/season data,
+ * then re-render. rebuild() -> updateData() persists the new mod set to the hash.
+ */
+function onModToggle(id, checked) {
+	if (typeof ModRegistry === "undefined") return;
+	ModRegistry.setEnabled(id, checked);
+	ModRegistry.rebuildData();
+	buildSeedSourcesUI();   // enabled mods change which seed vendors exist
+	rebuild();
+}
+
+/* ---------------- Seed source (vendor) toggles ---------------- */
+// Enabled state keyed by a letter-only source key (URL-hash safe). Absent = on.
+var seedSourceEnabled = {};
+// Merge near-duplicate vendor labels under one canonical label.
+var SEED_SOURCE_SYNONYMS = { "Traveling Cart": "Travelling Cart" };
+
+function canonicalSource(loc) { return SEED_SOURCE_SYNONYMS[loc] || loc; }
+function sourceKey(label) { return label.toLowerCase().replace(/[^a-z]/g, ""); }
+function isSourceEnabled(label) { return seedSourceEnabled[sourceKey(label)] !== false; }
+
+// Distinct seed sources across all loaded crops (vanilla + enabled mods):
+// Pierre, Joja first, then special vendors by descending crop count.
+function listSeedSources() {
+	var hasPierre = false, hasJoja = false, counts = {};
+	for (var k in crops) {
+		var s = crops[k].seeds; if (!s) continue;
+		if (s.pierre) hasPierre = true;
+		if (s.joja) hasJoja = true;
+		if (s.specialLoc) {
+			var c = canonicalSource(s.specialLoc);
+			counts[c] = (counts[c] || 0) + 1;
+		}
+	}
+	var specials = Object.keys(counts).sort(function (a, b) {
+		return counts[b] - counts[a] || a.localeCompare(b);
+	});
+	var list = [];
+	if (hasPierre) list.push("Pierre");
+	if (hasJoja) list.push("Joja");
+	return list.concat(specials);
+}
+
+// (Re)render the Seed Sources checkboxes from the current source list.
+function buildSeedSourcesUI() {
+	var box = document.getElementById('seed_sources_list');
+	if (!box) return;
+	box.innerHTML = "";
+	listSeedSources().forEach(function (label) {
+		var id = "check_src_" + sourceKey(label);
+		var cb = document.createElement("input");
+		cb.type = "checkbox";
+		cb.id = id;
+		cb.checked = isSourceEnabled(label);
+		cb.addEventListener("change", function () {
+			seedSourceEnabled[sourceKey(label)] = cb.checked;
+			rebuild();
+		});
+		var lab = document.createElement("label");
+		lab.setAttribute("for", id);
+		lab.textContent = label;
+		box.appendChild(cb);
+		box.appendChild(document.createTextNode(" "));
+		box.appendChild(lab);
+		box.appendChild(document.createElement("br"));
+	});
 }
 
 /*
@@ -1921,6 +2077,13 @@ function optionsLoad() {
 	if (!window.location.hash) return;
 
 	options = deserialize(window.location.hash.slice(1));
+
+	// Restore enabled mods into the registry before crops/seasons are rebuilt.
+	if (typeof ModRegistry !== "undefined" && options.mods) {
+		ModRegistry.setEnabledIds(
+			Object.keys(options.mods).filter(function (k) { return options.mods[k]; })
+		);
+	}
 
 	function validBoolean(q) {
 		return q == 1;
@@ -1965,7 +2128,7 @@ function optionsLoad() {
 
     var daysMax = 0;
     if (options.crossSeason)
-        daysMax = options.season === 4 ? MAX_INT : 56;
+        daysMax = options.season === 4 ? MAX_INT : (4 - options.season) * 28;
     else
         daysMax = options.season === 4 ? MAX_INT : 28;
 
@@ -1984,14 +2147,12 @@ function optionsLoad() {
         }
     }
 
-	options.seeds.pierre = validBoolean(options.seeds.pierre);
-	document.getElementById('check_seedsPierre').checked = options.seeds.pierre;
-
-	options.seeds.joja = validBoolean(options.seeds.joja);
-	document.getElementById('check_seedsJoja').checked = options.seeds.joja;
-
-	options.seeds.special = validBoolean(options.seeds.special);
-	document.getElementById('check_seedsSpecial').checked = options.seeds.special;
+	// Restore per-vendor seed source state (UI is rebuilt from this in initial()).
+	if (options.seedSources) {
+		seedSourceEnabled = {};
+		for (var srcKey in options.seedSources)
+			seedSourceEnabled[srcKey] = options.seedSources[srcKey];
+	}
 
 	options.buySeed = validBoolean(options.buySeed);
 	document.getElementById('check_buySeed').checked = options.buySeed;

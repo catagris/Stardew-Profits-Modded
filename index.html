@@ -15,7 +15,13 @@
 		</div>
 
 		<script src="js/predictions.js"> </script>
+		<script src="js/modRegistry.js"> </script>
 		<script src="js/crops.js"> </script>
+		<!-- mod data files: add one <script src="js/mods/<mod>.js"> per supported mod here -->
+		<script src="js/mods/cornucopia-crops.js"> </script>
+		<script src="js/mods/cornucopia-flowers.js"> </script>
+		<script src="js/mods/sve.js"> </script>
+		<script src="js/mods/eastscarp.js"> </script>
 		<script src="js/data.js"> </script>
 		<div class="graph">
 			<script src="js/main.js"> </script>
@@ -128,11 +134,7 @@
 
 			<tr>
 				<td>Seed Sources:</td>
-				<td>
-					<input type="checkbox" id="check_seedsPierre" onChange="rebuild()" checked="true" /> <label for="check_seedsPierre">Pierre</label><br />
-					<input type="checkbox" id="check_seedsJoja" onChange="rebuild()" checked="true" /> <label for="check_seedsJoja">Joja</label><br />
-					<input type="checkbox" id="check_seedsSpecial" onChange="rebuild()" checked="true" /> <label for="check_seedsSpecial">Special</label>
-				</td>
+				<td id="seed_sources_list"></td>
 			</tr>
 
 			<tr>
@@ -265,6 +267,11 @@
 				<button type="button" onClick="refresh()" >Recalculate</button></td>
 			</tr>
 			
+			<tr id="mods_row" style="display:none;">
+				<td>Mods:</td>
+				<td id="mods_list"></td>
+			</tr>
+
 			<tr>
 				<td colspan="3" id="tdhelp"><div id="divhelp"><a href="help.html">Help</a><a href="changes.html">Changes</a><a href="#" id="reset">Reset</a></div></td>
 			</tr>

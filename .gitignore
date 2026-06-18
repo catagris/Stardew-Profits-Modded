@@ -1,0 +1,19 @@
+# Third-party mod packs — large, not redistributable, dev inputs only.
+# The ingest tools read crop JSON + sprites from these folders locally; the
+# generated js/mods/*.js + img/ are what ship. Keep the packs out of the repo.
+/Cornucopia/
+/East Scarp REMASTERED/
+/Ridgeside Village/
+/Stardew Valley Expanded/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*~
+*.swp
+
+# Debug capture
+*.har
+
+# Internal working notes (not part of the public fork)
+design.md

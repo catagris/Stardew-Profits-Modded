@@ -1,5 +1,7 @@
-# Stardew Profits
+# Stardew Profits (Modded)
 Stardew Profits is a calculation and graphing tool designed to help the players of the popular game "Stardew Valley" to easily calculate and compare their profits from planting different crops under different conditions.
+
+**This is a modded fork** of [Thorinair's Stardew Profits](https://github.com/Thorinair/Stardew-Profits) that adds a **mod system**: crops from popular Stardew mods can be toggled on/off in the options panel, with per-vendor seed sources and multi-season ("Cross-Season") support. See [Mods](#mods) below.
 
 # Usage
 The tool is split up to two sections: graph box and options box. The options box lets the user quickly change the parameters which are then reflected on the graph.
@@ -13,7 +15,8 @@ The following table describes all the options and how they affect the graph.
 Option | Description
 --- | ---
 Season | Changes the season of the crops. This will affect list of the crops shown in the graph, as only some crops grow at certain seasons. Additionally, all seasons have a limit of 28 maximum days for calculation. The *Greenhouse* season doesn't have such limitations, shows all crops and allows for a duration of up to 100 thousand days.
-Cross-Season | If this is checked, the calculations will take into account the crops that don't die when there's a season change.
+Cross-Season | If this is checked, crops that survive a season change keep growing from the selected season forward through every consecutive season they're valid in (up to the rest of the year). The selected season becomes the *starting* season (labelled "Spring →", etc.). Crops that aren't valid in the next season still die at that boundary.
+Mods | Toggle each supported mod on/off. Enabling a mod adds its crops to the graph and its seed vendors to Seed Sources. Only shown when mod data files are present. See [Mods](#mods).
 Current Day | The current date within the selected season. This is almost the same as "Number of days", but instead of specifying how many days are left, as a convenience you can just input the current in-game date.
 Number of Days | Designates the number of days to be used in the calculation. The shorter the duration, the less crops will have time to grow. Some crops might not have time to grow even once if a too low value is set.
 Crop Tiles | The number of active crop tiles that the player will use for planting.
@@ -25,7 +28,7 @@ Dehydrator By Harvest | Dried goods will only be created that can be per harvest
 Aging | Specifies the level of aging in a Cask for the final produce. Does not take in account how long it takes to age. This means that Hops might not necessarily be the best option as they would require a new additional Cask each day.
 Profit Display | Changes how the graph is organized. ROI is calculated by dividing the profit by the expenses. Daily is calculated through the number of days set earlier.
 Max Seed Money | The maximum amount of money available in player's savings. This will limit how many crops can be planted when buying seeds.
-Seed Sources | Seeds can be obtained at different locations and different locations always have different costs too. This option lets you check which sources the graph should be looking for. Note that the cheapest option will always be shown on the graph. Unselecting certain locations might hide no longer obtainable crops.
+Seed Sources | One checkbox per seed vendor present across vanilla + enabled mods (Pierre, Joja, and special vendors like Sandy, the Travelling Cart, or mod vendors such as Jessie/Zoey). Unchecking a vendor hides crops only available there; the cheapest enabled source is used for seed cost.
 Pay For Seeds | Selecting this means that the player is buying the seeds from one of the sources, instead of producing the seeds themselves (like using the *Seed Maker*). An orange bar will be shown for every crop, showing the seed loss if selected.
 Process & Replant | Whether half of the harvest should be processed in a Seed Maker and replanted. Only affects crops which don't have a regrow time. Enabling this option also forces even number of planted crops. In case of Raw crops, ones with lower value will be reused for seeds first.
 Use Next Year | Whether harvest should be processed for use next year. This will lower the profit of regrowing plants, as one harvest should be used to reserve seeds for next year. Can only be enabled if Process & Replant is enabled, and if Season is not set to Greenhouse.
@@ -42,6 +45,20 @@ Farming Food Buff | The consumable buff active on the player.
 Show Extra Info | Selecting this will show additional detailed info about every crop on the tooltip.
 Disable Links | Selecting this will disable opening the Official Wiki when the bar graph is clicked.
 Use Prediction Model | Selecting this will enable @doodlebunnyhops prediction model, which, instead of using averaging calculations, will calculate crop predictions based on randomnes. Pressing on the Recalculate button will re-run the predictions. Results will vary on each re-run.
+
+# Mods
+This fork adds a lightweight mod system. Each supported mod is a data file in `js/mods/` registered via `ModRegistry`; vanilla crops are always on, and each mod is toggled in the **Mods** options row. Mod selection (and seed-source choices) round-trip through the URL hash, so a shared link keeps your setup.
+
+Currently bundled:
+
+| Mod | Crops |
+| --- | --- |
+| [Cornucopia – More Crops](https://www.nexusmods.com/stardewvalley/mods/19508) | 77 |
+| [Cornucopia – More Flowers](https://www.nexusmods.com/stardewvalley/mods/20290) | 40 |
+| [Stardew Valley Expanded](https://www.nexusmods.com/stardewvalley/mods/3753) | 12 |
+| [East Scarp](https://www.nexusmods.com/stardewvalley/mods/5787) | 18 |
+
+Each `js/mods/<mod>.js` is hand-maintained crop data (price, growth, seasons, seed vendor, wiki link). To add another mod, see [`tools/README.md`](tools/README.md) — a script scaffolds a new data file from the mod's Content Patcher files, which you then refine.
 
 # Contact
 You may contact me on the following locations: [Twitter](https://twitter.com/thorinair_music) | [Bluesky](https://bsky.app/profile/thorinair.bsky.social)
