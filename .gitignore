@@ -17,3 +17,7 @@ Thumbs.db
 
 # Internal working notes (not part of the public fork)
 design.md
+
+# Re-added dev inputs (must never be committed)
+/_modsources/
+/Wildflour's Atelier Goods/
